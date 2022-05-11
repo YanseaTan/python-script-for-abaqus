@@ -7,6 +7,8 @@ import math
 import random
 
 # input attribute
+diameter = 10
+dopingRate = 0.2
 
 # create base
 myModel = mdb.models["Model-1"]
@@ -16,10 +18,22 @@ myPart = myModel.Part(name='Part-Base', dimensionality=THREE_D, type=DEFORMABLE_
 myPart.BaseSolidExtrude(sketch=mysketch_1, depth=100.0)
 del mysketch_1
 
+# create ball
+partName = "Part-Ball-{}".format(diameter)
+mysketch_2 = myModel.ConstrainedSketch(name='mysketch_2', sheetSize=200.0)
+mysketch_2.ConstructionLine(point1=(0.0, -100.0), point2=(0.0, 100.0))
+curve = mysketch_2.CircleByCenterPerimeter(center=(0.0, 0.0), point1=(diameter/2.0, 0.0))
+mysketch_2.autoTrimCurve(curve1=curve, point1=(-diameter/2.0, 0.0))
+mysketch_2.Line(point1=(0.0, diameter/2.0), point2=(0.0, -diameter/2.0))
+myPart2 = myModel.Part(name=partName, dimensionality=THREE_D, type=DEFORMABLE_BODY)
+myPart2.BaseSolidRevolve(sketch=mysketch_2, angle=360.0, flipRevolveDirection=OFF)
+del mysketch_2
+
 # assembly base
 myAssembly = myModel.rootAssembly
 myAssembly.Instance(name='Part-Base', part = myModel.parts["Part-Base"], dependent=ON)
 
+# interCheck function
 def interCheck(point,center,radius1,radius2):
     sign = True
     for p in center:
@@ -27,6 +41,32 @@ def interCheck(point,center,radius1,radius2):
             sign = False
             break
     return sign
+
+# caculate diameter of 10mm
+count = 0
+center10 = []
+radius = diameter/2
+while True:
+    disX = random.uniform(radius, 100-radius)
+    disY = random.uniform(radius, 100-radius)
+    disZ = random.uniform(radius, 100-radius)
+    if len(center10)==0:
+        center10.append([disX,disY,disZ])
+    else:
+        if interCheck([disX,disY,disZ],center10,5,5):
+            center10.append([disX,disY,disZ])
+        else:
+            count -= 1
+    count += 1
+    if count >= 100*100*100*dopingRate/4*3/math.pi/radius/radius/radius:
+        break
+
+# assembly balls
+for index in range(len(center10)):
+    myAssembly.Instance(name='Part-Ball-10-{}'.format(index), part=myModel.parts["Part-Ball-10"], dependent=ON)
+    myAssembly.translate(instanceList=('Part-Ball-10-{}'.format(index),), vector=tuple(center10[index]))
+
+session.viewports['Viewport: 1'].assemblyDisplay.geometryOptions.setValues(datumAxes=OFF)
 
 # material
 ## UHDC
@@ -57,6 +97,17 @@ c = p.cells
 cells = c.getSequenceFromMask(mask=('[#1 ]', ), )
 region = regionToolset.Region(cells=cells)
 p.SectionAssignment(region=region, sectionName='UHDC', offset=0.0, offsetType=MIDDLE_SURFACE, offsetField='',
+thicknessAssignment=FROM_SECTION)
+
+## ceramsite
+mdb.models['Model-1'].Material(name='ceramsite')
+mdb.models['Model-1'].materials['ceramsite'].Elastic(table=((1500.0, 0.4), ))
+mdb.models['Model-1'].HomogeneousSolidSection(name='ceramsite', material='ceramsite', thickness=None)
+p = mdb.models['Model-1'].parts['Part-Ball-10']
+c = p.cells
+cells = c.getSequenceFromMask(mask=('[#1 ]', ), )
+region = regionToolset.Region(cells=cells)
+p.SectionAssignment(region=region, sectionName='ceramsite', offset=0.0, offsetType=MIDDLE_SURFACE, offsetField='',
 thicknessAssignment=FROM_SECTION)
 
 # step
@@ -94,26 +145,5 @@ mdb.models['Model-1'].DisplacementBC(name='load', createStepName='Step-1',
     localCsys=None)
 
 # mesh
-## base
-p = mdb.models['Model-1'].parts['Part-Base']
-c = p.cells
-pickedRegions = c.getSequenceFromMask(mask=('[#1 ]', ), )
-p.setMeshControls(regions=pickedRegions, elemShape=TET, technique=FREE)
-elemType1 = mesh.ElemType(elemCode=C3D20R)
-elemType2 = mesh.ElemType(elemCode=C3D15)
-elemType3 = mesh.ElemType(elemCode=C3D10)
-cells = c.getSequenceFromMask(mask=('[#1 ]', ), )
-pickedRegions =(cells, )
-p.setElementType(regions=pickedRegions, elemTypes=(elemType1, elemType2, 
-    elemType3))
-p.seedPart(size=10.0, deviationFactor=0.1, minSizeFactor=0.1)
-p.generateMesh()
 
 # job
-mdb.Job(name='Job-1', model='Model-1', description='', type=ANALYSIS, 
-    atTime=None, waitMinutes=0, waitHours=0, queue=None, memory=90, 
-    memoryUnits=PERCENTAGE, getMemoryFromAnalysis=True, 
-    explicitPrecision=SINGLE, nodalOutputPrecision=SINGLE, echoPrint=OFF, 
-    modelPrint=OFF, contactPrint=OFF, historyPrint=OFF, userSubroutine='', 
-    scratch='', resultsFormat=ODB, multiprocessingMode=DEFAULT, numCpus=6, 
-    numDomains=6, numGPUs=0)
