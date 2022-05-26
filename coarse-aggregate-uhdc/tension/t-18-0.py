@@ -5,8 +5,13 @@ from caeModules import *
 import regionToolset
 import math
 import random
+import job
 
-# create base
+# input parameters
+stepTime = 0.2
+
+# parts
+## base
 myModel = mdb.models["Model-1"]
 mysketch_1 = myModel.ConstrainedSketch(name='mysketch_1', sheetSize=200.0)
 mysketch_1.rectangle(point1=(0.0, 0.0), point2=(50.0, 50.0))
@@ -14,11 +19,12 @@ myPart = myModel.Part(name='Part-Base', dimensionality=THREE_D, type=DEFORMABLE_
 myPart.BaseSolidExtrude(sketch=mysketch_1, depth=100.0)
 del mysketch_1
 
-# assembly base
+# assemble parts
+## base
 myAssembly = myModel.rootAssembly
 myAssembly.Instance(name='Part-Base', part = myModel.parts["Part-Base"], dependent=ON)
 
-# material
+# materials
 ## UHDC
 mdb.models['Model-1'].Material(name='UHDC')
 mdb.models['Model-1'].materials['UHDC'].ConcreteDamagedPlasticity(table=((30.0, 0.1, 1.16, 0.667, 0.0005), ))
@@ -29,8 +35,8 @@ mdb.models['Model-1'].materials['UHDC'].concreteDamagedPlasticity.ConcreteCompre
     34.77270073, 0.011012122), (27.06905109, 0.014297443), (15.0, 0.019444444), 
     (15.0, 0.029444444)))
 mdb.models['Model-1'].materials['UHDC'].concreteDamagedPlasticity.ConcreteTensionStiffening(
-    table=((2.5, 0.0), (5.05, 0.039812963), (4.915, 0.041817963), (4.78,
-    0.043822963), (1.0, 0.099962963)))
+    table=((3.3, 0.0), (5.05, 0.049812963), (4.888, 0.051818963), (4.726,
+    0.053824963), (1.0, 0.099962963)))
 mdb.models['Model-1'].materials['UHDC'].concreteDamagedPlasticity.ConcreteCompressionDamage(
     table=((0.0, 0.0), (0.37657826, 0.002628785), (0.395647673, 0.00304684), (
     0.415338728, 0.003488307), (0.435716498, 0.003953188), (0.456858269, 
@@ -38,9 +44,10 @@ mdb.models['Model-1'].materials['UHDC'].concreteDamagedPlasticity.ConcreteCompre
     0.676417688, 0.011012122), (0.7440183, 0.014297443), (0.833333333, 
     0.019444444), (0.863917237, 0.029444444)))
 mdb.models['Model-1'].materials['UHDC'].concreteDamagedPlasticity.ConcreteTensionDamage(
-    table=((0.0, 0.0), (0.931619258, 0.039812963), (0.934165243, 0.041817963),
-    (0.936568391, 0.043822963), (0.980754991, 0.099962963)))
+    table=((0.0, 0.0), (0.938838405, 0.049812963), (0.94099592, 0.051818963),
+    (0.943066472, 0.053824963), (0.980754991, 0.099962963)))
 mdb.models['Model-1'].materials['UHDC'].Elastic(table=((27000.0, 0.2), ))
+mdb.models['Model-1'].materials['UHDC'].Density(table=((2.5e-09, ), ))
 mdb.models['Model-1'].HomogeneousSolidSection(name='UHDC', material='UHDC', thickness=None)
 p = mdb.models['Model-1'].parts['Part-Base']
 c = p.cells
@@ -50,15 +57,42 @@ p.SectionAssignment(region=region, sectionName='UHDC', offset=0.0, offsetType=MI
 thicknessAssignment=FROM_SECTION)
 
 # step
-mdb.models['Model-1'].StaticStep(name='Step-1', previous='Initial', maxNumInc=10000, initialInc=0.01, maxInc=0.1)
-# mdb.models['Model-1'].fieldOutputRequests['F-Output-1'].setValues(variables=('S', 'PE', 'PEEQ', 'PEMAG', 'LE', 'U',
-# 'RF', 'CF', 'CSTRESS', 'CDISP', 'DAMAGEC', 'DAMAGET'))
-mdb.models['Model-1'].fieldOutputRequests['F-Output-1'].setValues(variables=('S', 'U', 'PE','RF','DAMAGEC', 'DAMAGET'))
-
-# boundary conditions
 myAssembly.ReferencePoint(point=(25.0, 25.0, 100.0))
+myAssembly.ReferencePoint(point=(25.0, 25.0, 0.0))
 r1 = myAssembly.referencePoints
 refPoints1=(r1[3], )
+myAssembly.Set(referencePoints=refPoints1, name='rf1')
+r2 = myAssembly.referencePoints
+refPoints2=(r2[4], )
+myAssembly.Set(referencePoints=refPoints2, name='rf2')
+mdb.models['Model-1'].ExplicitDynamicsStep(name='Step-1', previous='Initial', 
+    timePeriod=stepTime, massScaling=((SEMI_AUTOMATIC, MODEL, AT_BEGINNING, 5.0, 
+    1e-05, BELOW_MIN, 0, 0, 0.0, 0.0, 0, None), ), improvedDtMethod=ON)
+mdb.models['Model-1'].fieldOutputRequests['F-Output-1'].setValues(variables=('S', 'U', 'PE','RF','DAMAGEC', 'DAMAGET', 'STATUS'))
+del mdb.models['Model-1'].historyOutputRequests['H-Output-1']
+regionDef=mdb.models['Model-1'].rootAssembly.sets['rf1']
+mdb.models['Model-1'].HistoryOutputRequest(name='H-Output-1', 
+    createStepName='Step-1', variables=('RF3', ), region=regionDef, 
+    sectionPoints=DEFAULT, rebar=EXCLUDE)
+regionDef=mdb.models['Model-1'].rootAssembly.sets['rf2']
+mdb.models['Model-1'].HistoryOutputRequest(name='H-Output-2', 
+    createStepName='Step-1', variables=('U3', ), region=regionDef, 
+    sectionPoints=DEFAULT, rebar=EXCLUDE)
+
+# contact
+mdb.models['Model-1'].ContactProperty('IntProp-1')
+mdb.models['Model-1'].interactionProperties['IntProp-1'].TangentialBehavior(
+    formulation=FRICTIONLESS)
+mdb.models['Model-1'].interactionProperties['IntProp-1'].NormalBehavior(
+    pressureOverclosure=HARD, allowSeparation=ON, 
+    constraintEnforcementMethod=DEFAULT)
+mdb.models['Model-1'].ContactExp(name='Int-1', createStepName='Initial')
+mdb.models['Model-1'].interactions['Int-1'].includedPairs.setValuesInStep(
+    stepName='Initial', useAllstar=ON)
+mdb.models['Model-1'].interactions['Int-1'].contactPropertyAssignments.appendInStep(
+    stepName='Initial', assignments=((GLOBAL, SELF, 'IntProp-1'), ))
+
+# boundary conditions
 region1=regionToolset.Region(referencePoints=refPoints1)
 s1 = myAssembly.instances['Part-Base'].faces
 side1Faces1 = s1.getSequenceFromMask(mask=('[#10 ]', ), )
@@ -66,41 +100,52 @@ region2=regionToolset.Region(side1Faces=side1Faces1)
 mdb.models['Model-1'].Coupling(name='Constraint-1', controlPoint=region1, 
     surface=region2, influenceRadius=WHOLE_SURFACE, couplingType=KINEMATIC, 
     localCsys=None, u1=OFF, u2=OFF, u3=ON, ur1=ON, ur2=ON, ur3=ON)
-region = regionToolset.Region(referencePoints=refPoints1)
-mdb.models['Model-1'].EncastreBC(name='BC-1', createStepName='Initial', region=region, localCsys=None)
+region3=regionToolset.Region(referencePoints=refPoints2)
+s2 = myAssembly.instances['Part-Base'].faces
+side1Faces2 = s2.getSequenceFromMask(mask=('[#20 ]', ), )
+region4=regionToolset.Region(side1Faces=side1Faces2)
+mdb.models['Model-1'].Coupling(name='Constraint-2', controlPoint=region3, 
+    surface=region4, influenceRadius=WHOLE_SURFACE, couplingType=KINEMATIC, 
+    localCsys=None, u1=OFF, u2=OFF, u3=ON, ur1=ON, ur2=ON, ur3=ON)
+mdb.models['Model-1'].EncastreBC(name='BC-1', createStepName='Initial', 
+    region=region1, localCsys=None)
+
 
 # load
-mdb.models['Model-1'].TabularAmplitude(name='Amp-1', timeSpan=STEP, smooth=SOLVER_DEFAULT, data=((0.0, 0.0), (0.1, 0.1),
-(0.2, 0.2), (0.3, 0.3), (0.4, 0.4), (0.5, 0.5), (0.6, 0.6), (0.7, 0.7), (0.8, 0.8), (0.9, 0.9), (1.0, 1.0)))
-f1 = myAssembly.instances['Part-Base'].faces
-faces1 = f1.getSequenceFromMask(mask=('[#20 ]', ), )
-region = regionToolset.Region(faces=faces1)
+mdb.models['Model-1'].SmoothStepAmplitude(name='Amp-1', timeSpan=STEP, data=((
+    0.0, 0.0), (stepTime, 1.0)))
+region = myAssembly.sets['rf2']
 mdb.models['Model-1'].DisplacementBC(name='load', createStepName='Step-1', 
-    region=region, u1=UNSET, u2=UNSET, u3=-10.0, ur1=0.0, ur2=0.0, ur3=0.0, 
+    region=region, u1=0.0, u2=0.0, u3=-10.0, ur1=0.0, ur2=0.0, ur3=0.0, 
     amplitude='Amp-1', fixed=OFF, distributionType=UNIFORM, fieldName='', 
     localCsys=None)
 
 # mesh
 p = mdb.models['Model-1'].parts['Part-Base']
+p.seedPart(size=5.0, deviationFactor=0.1, minSizeFactor=0.1)
 c = p.cells
-pickedRegions = c.getSequenceFromMask(mask=('[#1 ]', ), )
-p.setMeshControls(regions=pickedRegions, elemShape=TET, technique=FREE, 
-    allowMapped=False)
-elemType1 = mesh.ElemType(elemCode=C3D20R)
-elemType2 = mesh.ElemType(elemCode=C3D15)
-elemType3 = mesh.ElemType(elemCode=C3D10)
-cells = c.getSequenceFromMask(mask=('[#1 ]', ), )
+pickedRegions = c[0:1]
+p.setMeshControls(regions=pickedRegions, elemShape=TET, technique=FREE, allowMapped=False)
+elemType1 = mesh.ElemType(elemCode=UNKNOWN_HEX, elemLibrary=EXPLICIT)
+elemType2 = mesh.ElemType(elemCode=UNKNOWN_WEDGE, elemLibrary=EXPLICIT)
+elemType3 = mesh.ElemType(elemCode=C3D10M, elemLibrary=EXPLICIT)
+cells = c[0:1]
 pickedRegions =(cells, )
 p.setElementType(regions=pickedRegions, elemTypes=(elemType1, elemType2, 
     elemType3))
-p.seedPart(size=10.0, deviationFactor=0.1, minSizeFactor=0.1)
 p.generateMesh()
 
 # job
 mdb.Job(name='Job-1', model='Model-1', description='', type=ANALYSIS, 
     atTime=None, waitMinutes=0, waitHours=0, queue=None, memory=90, 
-    memoryUnits=PERCENTAGE, getMemoryFromAnalysis=True, 
-    explicitPrecision=SINGLE, nodalOutputPrecision=SINGLE, echoPrint=OFF, 
-    modelPrint=OFF, contactPrint=OFF, historyPrint=OFF, userSubroutine='', 
-    scratch='', resultsFormat=ODB, multiprocessingMode=DEFAULT, numCpus=6, 
-    numDomains=6, numGPUs=0)
+    memoryUnits=PERCENTAGE, explicitPrecision=SINGLE, 
+    nodalOutputPrecision=SINGLE, echoPrint=OFF, modelPrint=OFF, 
+    contactPrint=OFF, historyPrint=OFF, userSubroutine='', scratch='', 
+    resultsFormat=ODB, parallelizationMethodExplicit=DOMAIN, numDomains=6, 
+    activateLoadBalancing=False, multiprocessingMode=DEFAULT, numCpus=6)
+
+# keyword
+mdb.models['Model-1'].keywordBlock.synchVersions(storeNodesAndElements=False)
+mdb.models['Model-1'].keywordBlock.insert(48, """
+*CONCRETE FAILURE
+0.08,0,0,0""")
