@@ -5,10 +5,12 @@ from caeModules import *
 import regionToolset
 import math
 import random
+import job
 
 # input parameters
 diameter = 10
 dopingRate = 0.2
+stepTime = 0.05
 
 # parts
 ## base
@@ -104,8 +106,8 @@ mdb.models['Model-1'].materials['UHDC'].concreteDamagedPlasticity.ConcreteCompre
     34.77270073, 0.011012122), (27.06905109, 0.014297443), (15.0, 0.019444444), 
     (15.0, 0.029444444)))
 mdb.models['Model-1'].materials['UHDC'].concreteDamagedPlasticity.ConcreteTensionStiffening(
-    table=((2.5, 0.0), (5.05, 0.039812963), (4.915, 0.041817963), (4.78,
-    0.043822963), (1.0, 0.099962963)))
+    table=((3.3, 0.0), (5.05, 0.049812963), (4.888, 0.051818963), (4.726,
+    0.053824963), (1.0, 0.099962963)))
 mdb.models['Model-1'].materials['UHDC'].concreteDamagedPlasticity.ConcreteCompressionDamage(
     table=((0.0, 0.0), (0.37657826, 0.002628785), (0.395647673, 0.00304684), (
     0.415338728, 0.003488307), (0.435716498, 0.003953188), (0.456858269, 
@@ -113,8 +115,8 @@ mdb.models['Model-1'].materials['UHDC'].concreteDamagedPlasticity.ConcreteCompre
     0.676417688, 0.011012122), (0.7440183, 0.014297443), (0.833333333, 
     0.019444444), (0.863917237, 0.029444444)))
 mdb.models['Model-1'].materials['UHDC'].concreteDamagedPlasticity.ConcreteTensionDamage(
-    table=((0.0, 0.0), (0.931619258, 0.039812963), (0.934165243, 0.041817963),
-    (0.936568391, 0.043822963), (0.980754991, 0.099962963)))
+    table=((0.0, 0.0), (0.938838405, 0.049812963), (0.94099592, 0.051818963),
+    (0.943066472, 0.053824963), (0.980754991, 0.099962963)))
 mdb.models['Model-1'].materials['UHDC'].Elastic(table=((27000.0, 0.2), ))
 mdb.models['Model-1'].materials['UHDC'].Density(table=((2.5e-09, ), ))
 mdb.models['Model-1'].HomogeneousSolidSection(name='UHDC', material='UHDC', thickness=None)
@@ -147,7 +149,7 @@ r2 = myAssembly.referencePoints
 refPoints2=(r2[396], )
 myAssembly.Set(referencePoints=refPoints2, name='rf2')
 mdb.models['Model-1'].ExplicitDynamicsStep(name='Step-1', previous='Initial', 
-    timePeriod=0.1, massScaling=((SEMI_AUTOMATIC, MODEL, AT_BEGINNING, 5.0, 
+    timePeriod=stepTime, massScaling=((SEMI_AUTOMATIC, MODEL, AT_BEGINNING, 5.0, 
     1e-05, BELOW_MIN, 0, 0, 0.0, 0.0, 0, None), ), improvedDtMethod=ON)
 mdb.models['Model-1'].fieldOutputRequests['F-Output-1'].setValues(variables=('S', 'U', 'PE','RF','DAMAGEC', 'DAMAGET', 'STATUS'))
 del mdb.models['Model-1'].historyOutputRequests['H-Output-1']
@@ -194,7 +196,7 @@ mdb.models['Model-1'].EncastreBC(name='BC-1', createStepName='Initial',
 
 # load
 mdb.models['Model-1'].SmoothStepAmplitude(name='Amp-1', timeSpan=STEP, data=((
-    0.0, 0.0), (0.1, 1.0)))
+    0.0, 0.0), (stepTime, 1.0)))
 region = myAssembly.sets['rf2']
 mdb.models['Model-1'].DisplacementBC(name='load', createStepName='Step-1', 
     region=region, u1=0.0, u2=0.0, u3=-10.0, ur1=0.0, ur2=0.0, ur3=0.0, 
@@ -231,4 +233,4 @@ mdb.Job(name='Job-1', model='Model-1', description='', type=ANALYSIS,
 
 # keyword
 # *CONCRETE FAILURE
-# 0.8,0,0,0
+# 0,0,0,0.86

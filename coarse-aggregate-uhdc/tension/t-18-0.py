@@ -148,4 +148,4 @@ mdb.Job(name='Job-1', model='Model-1', description='', type=ANALYSIS,
 mdb.models['Model-1'].keywordBlock.synchVersions(storeNodesAndElements=False)
 mdb.models['Model-1'].keywordBlock.insert(48, """
 *CONCRETE FAILURE
-0.08,0,0,0""")
+0,0,0,0.86""")
