@@ -7,6 +7,8 @@ import math
 import random
 import job
 
+session.journalOptions.setValues(replayGeometry=INDEX,recoverGeometry=INDEX)
+
 # input parameters
 diameter = 10
 dopingRate = 0.2
@@ -25,20 +27,56 @@ del mysketch_1
 partName = "Part-Ball-{}".format(diameter)
 mysketch_2 = myModel.ConstrainedSketch(name='mysketch_2', sheetSize=200.0)
 mysketch_2.ConstructionLine(point1=(0.0, -100.0), point2=(0.0, 100.0))
-mysketch_2.ArcByCenterEnds(center=(0.0, 0.0), point1=(0.0, 5.0), point2=(5.0, 0.0), 
-    direction=CLOCKWISE)
-mysketch_2.Line(point1=(0.0, diameter/2.0), point2=(0.0, 0.0))
-mysketch_2.Line(point1=(0.0, 0.0), point2=(diameter/2.0, 0.0))
+curve = mysketch_2.CircleByCenterPerimeter(center=(0.0, 0.0), point1=(diameter/2.0, 0.0))
+mysketch_2.autoTrimCurve(curve1=curve, point1=(-diameter/2.0, 0.0))
+mysketch_2.Line(point1=(0.0, diameter/2.0), point2=(0.0, -diameter/2.0))
 myPart2 = myModel.Part(name=partName, dimensionality=THREE_D, type=DEFORMABLE_BODY)
-myPart2.BaseSolidRevolve(sketch=mysketch_2, angle=90.0, flipRevolveDirection=OFF)
+myPart2.BaseSolidRevolve(sketch=mysketch_2, angle=360.0, flipRevolveDirection=OFF)
 del mysketch_2
-p = mdb.models['Model-1'].parts["Part-Ball-{}".format(diameter)]
-f = p.faces
-p.Mirror(mirrorPlane=f[3], keepOriginal=ON, keepInternalBoundaries=ON)
-f1 = p.faces
-p.Mirror(mirrorPlane=f1[2], keepOriginal=ON, keepInternalBoundaries=ON)
-f = p.faces
-p.Mirror(mirrorPlane=f[9], keepOriginal=ON, keepInternalBoundaries=ON)
+
+# materials
+## UHDC
+mdb.models['Model-1'].Material(name='UHDC')
+mdb.models['Model-1'].materials['UHDC'].ConcreteDamagedPlasticity(table=((30.0, 0.1, 1.16, 0.667, 0.0005), ))
+mdb.models['Model-1'].materials['UHDC'].concreteDamagedPlasticity.ConcreteCompressionHardening(
+    table=((1.35, 0.0), (50.35626102, 0.002434953), (52.82539683, 0.002843504), 
+    (54.58906526, 0.003278183), (55.64726631, 0.00373899), (56.0, 0.004225926), 
+    (54.50364964, 0.004781346), (53.00729927, 0.005336767), (38.04379562, 
+    0.010890971), (29.06569343, 0.014223493), (15.0, 0.019444444), (15.0, 
+    0.029444444)))
+mdb.models['Model-1'].materials['UHDC'].concreteDamagedPlasticity.ConcreteTensionStiffening(
+    table=((3.3, 0.0), (5.05, 0.049812963), (4.888, 0.051818963), (4.726,
+    0.053824963), (1.0, 0.099962963)))
+mdb.models['Model-1'].materials['UHDC'].concreteDamagedPlasticity.ConcreteCompressionDamage(
+    table=((0.0, 0.0), (0.34141683, 0.002434953), (0.361561772, 0.002843504), (
+    0.382363416, 0.003278183), (0.403890507, 0.00373899), (0.426224689, 
+    0.004225926), (0.455150629, 0.004781346), (0.481409536, 0.005336767), (
+    0.661539897, 0.010890971), (0.734745508, 0.014223493), (0.833333333, 
+    0.019444444), (0.863917237, 0.029444444)))
+mdb.models['Model-1'].materials['UHDC'].concreteDamagedPlasticity.ConcreteTensionDamage(
+    table=((0.0, 0.0), (0.938838405, 0.049812963), (0.94099592, 0.051818963),
+    (0.943066472, 0.053824963), (0.980754991, 0.099962963)))
+mdb.models['Model-1'].materials['UHDC'].Elastic(table=((27000.0, 0.2), ))
+mdb.models['Model-1'].materials['UHDC'].Density(table=((2.5e-09, ), ))
+mdb.models['Model-1'].HomogeneousSolidSection(name='UHDC', material='UHDC', thickness=None)
+p = mdb.models['Model-1'].parts['Part-Base']
+c = p.cells
+cells = c.getSequenceFromMask(mask=('[#1 ]', ), )
+region = regionToolset.Region(cells=cells)
+p.SectionAssignment(region=region, sectionName='UHDC', offset=0.0, offsetType=MIDDLE_SURFACE, offsetField='',
+thicknessAssignment=FROM_SECTION)
+
+## aggregate
+mdb.models['Model-1'].Material(name='aggregate')
+mdb.models['Model-1'].materials['aggregate'].Elastic(table=((1500.0, 0.4), ))
+mdb.models['Model-1'].materials['aggregate'].Density(table=((9e-10, ), ))
+mdb.models['Model-1'].HomogeneousSolidSection(name='aggregate', material='aggregate', thickness=None)
+p = mdb.models['Model-1'].parts['Part-Ball-10']
+c = p.cells
+cells = c.getSequenceFromMask(mask=('[#1 ]', ), )
+region = regionToolset.Region(cells=cells)
+p.SectionAssignment(region=region, sectionName='aggregate', offset=0.0, offsetType=MIDDLE_SURFACE, offsetField='',
+thicknessAssignment=FROM_SECTION)
 
 # interCheck function
 def interCheck(point,center,radius1,radius2):
@@ -95,50 +133,6 @@ for index in range(len(center10)):
 myAssembly.Set(cells=cells1, name='aggregate')
 myAssembly.Set(cells=myAssembly.instances['Part-CutBase-1'].cells[0:1], name='base')
 
-# materials
-## UHDC
-mdb.models['Model-1'].Material(name='UHDC')
-mdb.models['Model-1'].materials['UHDC'].ConcreteDamagedPlasticity(table=((30.0, 0.1, 1.16, 0.667, 0.0005), ))
-mdb.models['Model-1'].materials['UHDC'].concreteDamagedPlasticity.ConcreteCompressionHardening(
-    table=((1.35, 0.0), (45.12280675, 0.002628785), (47.3353288, 0.00304684), (
-    48.91570169, 0.003488307), (49.86392542, 0.003953188), (50.18, 
-    0.004441481), (48.89605839, 0.004989035), (47.61211679, 0.005536588), (
-    34.77270073, 0.011012122), (27.06905109, 0.014297443), (15.0, 0.019444444), 
-    (15.0, 0.029444444)))
-mdb.models['Model-1'].materials['UHDC'].concreteDamagedPlasticity.ConcreteTensionStiffening(
-    table=((3.3, 0.0), (5.05, 0.049812963), (4.888, 0.051818963), (4.726,
-    0.053824963), (1.0, 0.099962963)))
-mdb.models['Model-1'].materials['UHDC'].concreteDamagedPlasticity.ConcreteCompressionDamage(
-    table=((0.0, 0.0), (0.37657826, 0.002628785), (0.395647673, 0.00304684), (
-    0.415338728, 0.003488307), (0.435716498, 0.003953188), (0.456858269, 
-    0.004441481), (0.483939538, 0.004989035), (0.508509155, 0.005536588), (
-    0.676417688, 0.011012122), (0.7440183, 0.014297443), (0.833333333, 
-    0.019444444), (0.863917237, 0.029444444)))
-mdb.models['Model-1'].materials['UHDC'].concreteDamagedPlasticity.ConcreteTensionDamage(
-    table=((0.0, 0.0), (0.938838405, 0.049812963), (0.94099592, 0.051818963),
-    (0.943066472, 0.053824963), (0.980754991, 0.099962963)))
-mdb.models['Model-1'].materials['UHDC'].Elastic(table=((27000.0, 0.2), ))
-mdb.models['Model-1'].materials['UHDC'].Density(table=((2.5e-09, ), ))
-mdb.models['Model-1'].HomogeneousSolidSection(name='UHDC', material='UHDC', thickness=None)
-p = mdb.models['Model-1'].parts['Part-CutBase']
-c = p.cells
-cells = c.getSequenceFromMask(mask=('[#1 ]', ), )
-region = regionToolset.Region(cells=cells)
-p.SectionAssignment(region=region, sectionName='UHDC', offset=0.0, offsetType=MIDDLE_SURFACE, offsetField='',
-thicknessAssignment=FROM_SECTION)
-
-## aggregate
-mdb.models['Model-1'].Material(name='aggregate')
-mdb.models['Model-1'].materials['aggregate'].Elastic(table=((1500.0, 0.4), ))
-mdb.models['Model-1'].materials['aggregate'].Density(table=((9e-10, ), ))
-mdb.models['Model-1'].HomogeneousSolidSection(name='aggregate', material='aggregate', thickness=None)
-p = mdb.models['Model-1'].parts['Part-Ball-10']
-c = p.cells
-cells = c.getSequenceFromMask(mask=('[#ff ]', ), )
-region = regionToolset.Region(cells=cells)
-p.SectionAssignment(region=region, sectionName='aggregate', offset=0.0, offsetType=MIDDLE_SURFACE, offsetField='',
-thicknessAssignment=FROM_SECTION)
-
 # step
 myAssembly.ReferencePoint(point=(25.0, 25.0, 100.0))
 myAssembly.ReferencePoint(point=(25.0, 25.0, 0.0))
@@ -151,7 +145,8 @@ myAssembly.Set(referencePoints=refPoints2, name='rf2')
 mdb.models['Model-1'].ExplicitDynamicsStep(name='Step-1', previous='Initial', 
     timePeriod=stepTime, massScaling=((SEMI_AUTOMATIC, MODEL, AT_BEGINNING, 5.0, 
     1e-05, BELOW_MIN, 0, 0, 0.0, 0.0, 0, None), ), improvedDtMethod=ON)
-mdb.models['Model-1'].fieldOutputRequests['F-Output-1'].setValues(variables=('S', 'U', 'PE','RF','DAMAGEC', 'DAMAGET', 'STATUS'))
+mdb.models['Model-1'].fieldOutputRequests['F-Output-1'].setValues(variables=
+('S', 'U', 'PE','RF','DAMAGEC', 'DAMAGET', 'STATUS'), numIntervals=40)
 del mdb.models['Model-1'].historyOutputRequests['H-Output-1']
 regionDef=mdb.models['Model-1'].rootAssembly.sets['rf1']
 mdb.models['Model-1'].HistoryOutputRequest(name='H-Output-1', 
@@ -178,18 +173,18 @@ mdb.models['Model-1'].interactions['Int-1'].contactPropertyAssignments.appendInS
 # boundary conditions
 region1=regionToolset.Region(referencePoints=refPoints1)
 s1 = myAssembly.instances['Part-CutBase-1'].faces
-side1Faces1 = s1.getSequenceFromMask(mask=('[#10 ]', ), )
+side1Faces1 = s1[4:5]
 region2=regionToolset.Region(side1Faces=side1Faces1)
 mdb.models['Model-1'].Coupling(name='Constraint-1', controlPoint=region1, 
     surface=region2, influenceRadius=WHOLE_SURFACE, couplingType=KINEMATIC, 
-    localCsys=None, u1=OFF, u2=OFF, u3=ON, ur1=ON, ur2=ON, ur3=ON)
+    localCsys=None, u1=ON, u2=ON, u3=ON, ur1=OFF, ur2=OFF, ur3=OFF)
 region3=regionToolset.Region(referencePoints=refPoints2)
 s2 = myAssembly.instances['Part-CutBase-1'].faces
-side1Faces2 = s2.getSequenceFromMask(mask=('[#20 ]', ), )
+side1Faces2 = s2[5:6]
 region4=regionToolset.Region(side1Faces=side1Faces2)
 mdb.models['Model-1'].Coupling(name='Constraint-2', controlPoint=region3, 
     surface=region4, influenceRadius=WHOLE_SURFACE, couplingType=KINEMATIC, 
-    localCsys=None, u1=OFF, u2=OFF, u3=ON, ur1=ON, ur2=ON, ur3=ON)
+    localCsys=None, u1=ON, u2=ON, u3=ON, ur1=OFF, ur2=OFF, ur3=OFF)
 mdb.models['Model-1'].EncastreBC(name='BC-1', createStepName='Initial', 
     region=region1, localCsys=None)
 
@@ -207,30 +202,33 @@ mdb.models['Model-1'].DisplacementBC(name='load', createStepName='Step-1',
 myAssembly.InstanceFromBooleanMerge(name='Part-CAUHDC', instances=instances2, 
     keepIntersections=ON, originalInstances=DELETE, domain=GEOMETRY)
 
+# keyword
+mdb.models['Model-1'].keywordBlock.synchVersions(storeNodesAndElements=False)
+mdb.models['Model-1'].keywordBlock.insert(32, """
+*CONCRETE FAILURE
+0,0,0,0.8639""")
+
 # mesh
 p = mdb.models['Model-1'].parts['Part-CAUHDC']
-p.seedPart(size=5.0, deviationFactor=0.1, minSizeFactor=0.1)
+p.seedPart(size=2.0, deviationFactor=0.1, minSizeFactor=0.1)
 c = p.cells
-pickedRegions = c[776:777]
-p.setMeshControls(regions=pickedRegions, elemShape=TET, technique=FREE, allowMapped=False)
+pickedRegions = c[0:98]
+p.setMeshControls(regions=pickedRegions, elemShape=TET, technique=FREE, 
+    allowMapped=False)
 elemType1 = mesh.ElemType(elemCode=UNKNOWN_HEX, elemLibrary=EXPLICIT)
 elemType2 = mesh.ElemType(elemCode=UNKNOWN_WEDGE, elemLibrary=EXPLICIT)
 elemType3 = mesh.ElemType(elemCode=C3D10M, elemLibrary=EXPLICIT)
-cells = c[776:777]
+cells = c[0:98]
 pickedRegions =(cells, )
 p.setElementType(regions=pickedRegions, elemTypes=(elemType1, elemType2, 
     elemType3))
 p.generateMesh()
 
 # job
-mdb.Job(name='Job-1', model='Model-1', description='', type=ANALYSIS, 
+mdb.Job(name='p20t', model='Model-1', description='', type=ANALYSIS, 
     atTime=None, waitMinutes=0, waitHours=0, queue=None, memory=90, 
     memoryUnits=PERCENTAGE, explicitPrecision=SINGLE, 
     nodalOutputPrecision=SINGLE, echoPrint=OFF, modelPrint=OFF, 
     contactPrint=OFF, historyPrint=OFF, userSubroutine='', scratch='', 
     resultsFormat=ODB, parallelizationMethodExplicit=DOMAIN, numDomains=6, 
     activateLoadBalancing=False, multiprocessingMode=DEFAULT, numCpus=6)
-
-# keyword
-# *CONCRETE FAILURE
-# 0,0,0,0.86

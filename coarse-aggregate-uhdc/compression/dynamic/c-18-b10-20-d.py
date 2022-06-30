@@ -27,20 +27,12 @@ del mysketch_1
 partName = "Part-Ball-{}".format(diameter)
 mysketch_2 = myModel.ConstrainedSketch(name='mysketch_2', sheetSize=200.0)
 mysketch_2.ConstructionLine(point1=(0.0, -100.0), point2=(0.0, 100.0))
-mysketch_2.ArcByCenterEnds(center=(0.0, 0.0), point1=(0.0, 5.0), point2=(5.0, 0.0), 
-    direction=CLOCKWISE)
-mysketch_2.Line(point1=(0.0, diameter/2.0), point2=(0.0, 0.0))
-mysketch_2.Line(point1=(0.0, 0.0), point2=(diameter/2.0, 0.0))
+curve = mysketch_2.CircleByCenterPerimeter(center=(0.0, 0.0), point1=(diameter/2.0, 0.0))
+mysketch_2.autoTrimCurve(curve1=curve, point1=(-diameter/2.0, 0.0))
+mysketch_2.Line(point1=(0.0, diameter/2.0), point2=(0.0, -diameter/2.0))
 myPart2 = myModel.Part(name=partName, dimensionality=THREE_D, type=DEFORMABLE_BODY)
-myPart2.BaseSolidRevolve(sketch=mysketch_2, angle=90.0, flipRevolveDirection=OFF)
+myPart2.BaseSolidRevolve(sketch=mysketch_2, angle=360.0, flipRevolveDirection=OFF)
 del mysketch_2
-p = mdb.models['Model-1'].parts["Part-Ball-{}".format(diameter)]
-f = p.faces
-p.Mirror(mirrorPlane=f[3], keepOriginal=ON, keepInternalBoundaries=ON)
-f1 = p.faces
-p.Mirror(mirrorPlane=f1[2], keepOriginal=ON, keepInternalBoundaries=ON)
-f = p.faces
-p.Mirror(mirrorPlane=f[9], keepOriginal=ON, keepInternalBoundaries=ON)
 
 # materials
 ## UHDC
@@ -81,7 +73,7 @@ mdb.models['Model-1'].materials['aggregate'].Density(table=((2.5e-9, ), ))
 mdb.models['Model-1'].HomogeneousSolidSection(name='aggregate', material='aggregate', thickness=None)
 p = mdb.models['Model-1'].parts['Part-Ball-10']
 c = p.cells
-cells = c.getSequenceFromMask(mask=('[#ff ]', ), )
+cells = c.getSequenceFromMask(mask=('[#1 ]', ), )
 region = regionToolset.Region(cells=cells)
 p.SectionAssignment(region=region, sectionName='aggregate', offset=0.0, offsetType=MIDDLE_SURFACE, offsetField='',
 thicknessAssignment=FROM_SECTION)
@@ -220,12 +212,13 @@ mdb.models['Model-1'].keywordBlock.insert(32, """
 p = mdb.models['Model-1'].parts['Part-CAUHDC']
 p.seedPart(size=2.0, deviationFactor=0.1, minSizeFactor=0.1)
 c = p.cells
-pickedRegions = c[3064:3065]
-p.setMeshControls(regions=pickedRegions, elemShape=TET, technique=FREE, allowMapped=False)
+pickedRegions = c[0:384]
+p.setMeshControls(regions=pickedRegions, elemShape=TET, technique=FREE, 
+    allowMapped=False)
 elemType1 = mesh.ElemType(elemCode=UNKNOWN_HEX, elemLibrary=EXPLICIT)
 elemType2 = mesh.ElemType(elemCode=UNKNOWN_WEDGE, elemLibrary=EXPLICIT)
 elemType3 = mesh.ElemType(elemCode=C3D10M, elemLibrary=EXPLICIT)
-cells = c[3064:3065]
+cells = c[0:384]
 pickedRegions =(cells, )
 p.setElementType(regions=pickedRegions, elemTypes=(elemType1, elemType2, 
     elemType3))
